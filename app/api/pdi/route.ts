@@ -91,6 +91,50 @@ async function loadTracks(): Promise<PdiTrack[]> {
   })) as PdiTrack[];
 }
 
+function explainSupabaseError(error: unknown) {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error && "message" in error
+        ? String((error as { message?: unknown }).message)
+        : "Erro desconhecido.";
+
+  const lower = raw.toLowerCase();
+
+  if (lower.includes("server credentials are not configured")) {
+    return {
+      code: "SUPABASE_SECRET_MISSING",
+      message:
+        "A chave secreta do Supabase não está disponível neste deploy. Confira SUPABASE_SECRET_KEY no Vercel e faça um novo Redeploy.",
+    };
+  }
+
+  if (lower.includes("invalid api key") || lower.includes("jwt") || lower.includes("unauthorized")) {
+    return {
+      code: "SUPABASE_SECRET_INVALID",
+      message:
+        "A chave secreta do Supabase parece inválida. Confira SUPABASE_SECRET_KEY no Vercel e faça um novo Redeploy.",
+    };
+  }
+
+  if (lower.includes("does not exist") || lower.includes("schema cache") || lower.includes("relation")) {
+    return {
+      code: "SUPABASE_SCHEMA",
+      message:
+        "As tabelas do PDI não foram encontradas no Supabase. Execute novamente o arquivo supabase/schema.sql no SQL Editor.",
+    };
+  }
+
+  if (lower.includes("fetch failed") || lower.includes("network")) {
+    return {
+      code: "SUPABASE_NETWORK",
+      message: "Não foi possível alcançar o Supabase agora. Tente novamente em alguns instantes.",
+    };
+  }
+
+  return { code: "SUPABASE_UNKNOWN", message: raw || "Erro ao acessar o Supabase." };
+}
+
 export async function GET() {
   if (!(await isWorkspaceAuthenticated())) {
     return NextResponse.json({ message: "Não autorizado." }, { status: 401 });
@@ -99,10 +143,8 @@ export async function GET() {
   try {
     return NextResponse.json({ tracks: await loadTracks() });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Erro ao carregar o PDI." },
-      { status: 500 },
-    );
+    const explained = explainSupabaseError(error);
+    return NextResponse.json(explained, { status: 500 });
   }
 }
 
@@ -217,9 +259,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ tracks: await loadTracks() });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Erro ao salvar o PDI." },
-      { status: 500 },
-    );
+    const explained = explainSupabaseError(error);
+    return NextResponse.json(explained, { status: 500 });
   }
 }
