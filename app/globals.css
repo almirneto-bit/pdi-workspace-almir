@@ -925,3 +925,35 @@ select:focus {
     border-color: #000;
   }
 }
+
+
+.new-track-button {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px dashed #8200ff;
+  background: #fff;
+  color: #8200ff;
+  border-radius: 10px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  font-size: 12px;
+  transition: .18s ease;
+}
+
+.new-track-button:hover {
+  background: #f5edff;
+  border-style: solid;
+}
+
+.new-track-button span {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.new-track-button strong {
+  font-family: var(--font-body);
+  font-size: 12px;
+}
