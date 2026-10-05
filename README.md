@@ -2,45 +2,58 @@
 
 Workspace pessoal para acompanhar o Plano de Desenvolvimento Individual, inicialmente baseado na planilha `[PDI 2025.2] Planejamento do Time_Almir_may26.xlsx`.
 
-## V1
+## Estado atual
 
-- Replica as duas trilhas atuais do PDI.
-- Permite editar objetivo, ação, execução, resultado esperado, prazo, observação, status e progresso.
-- Permite registrar atualizações/comentários como **Almir** ou **Gestor**.
-- Mantém um histórico básico de alterações.
-- Protege a aplicação com uma senha compartilhada quando `APP_ACCESS_PASSWORD` está configurada.
-- Salva as alterações no `localStorage` do navegador nesta primeira versão.
-- Já deixa as variáveis do Supabase previstas para a próxima etapa.
+- Login privado com usuário + senha.
+- Duas trilhas iniciais importadas da planilha.
+- Edição de objetivo, ação, execução, resultado esperado, prazo, observação, status e progresso.
+- Comentários/atualizações identificados como Almir ou Gestor.
+- Histórico de alterações.
+- Persistência compartilhada no Supabase.
+- RLS habilitado nas tabelas.
+- A aplicação acessa o banco para escrita apenas pelo servidor.
 
-> Importante: nesta V1, os dados editados ainda não são sincronizados entre navegadores. A próxima etapa é conectar a persistência ao Supabase para que Almir e Gestor compartilhem a mesma base.
-
-## Rodar localmente
-
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
-
-Abra `http://localhost:3000`.
-
-## Variáveis de ambiente
+## Variáveis no Vercel
 
 ```env
+APP_ACCESS_USERNAME=almir
 APP_ACCESS_PASSWORD=uma-senha-forte
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+
+NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+
+SUPABASE_SECRET_KEY=sb_secret_...
 ```
 
-Nunca envie senhas ou chaves secretas para o GitHub.
+`SUPABASE_SECRET_KEY` é server-only. Nunca use o prefixo `NEXT_PUBLIC_` nela e nunca a envie para o GitHub.
 
-## Deploy no Vercel
+Se o projeto do Supabase ainda usa a chave legada `service_role`, a aplicação também aceita:
 
-1. Importe `almirneto-bit/pdi-workspace-almir` no Vercel.
-2. Em **Settings → Environment Variables**, crie `APP_ACCESS_PASSWORD`.
-3. Faça o deploy.
-4. Na próxima etapa, adicione também as duas variáveis públicas do Supabase e aplique o schema.
+```env
+SUPABASE_SERVICE_ROLE_KEY=...
+```
 
-## Próxima etapa
+## Banco
 
-A integração com Supabase irá substituir o `localStorage` por tabelas compartilhadas, adicionando usuários separados, autoria real, comentários, histórico persistente, documentos e permissões Owner/Manager.
+Execute `supabase/schema.sql` no SQL Editor do Supabase.
+
+Na primeira abertura autenticada da aplicação, se `pdi_tracks` estiver vazio, as duas trilhas iniciais são inseridas automaticamente.
+
+## Deploy
+
+1. Importe o repositório no Vercel.
+2. Configure todas as variáveis acima.
+3. Faça um novo deploy.
+4. Acesse o domínio.
+5. Entre com `APP_ACCESS_USERNAME` e `APP_ACCESS_PASSWORD`.
+
+## Próximas fases
+
+- Supabase Auth com contas separadas.
+- Papéis Owner e Manager.
+- Permissões específicas por tipo de conteúdo.
+- Ciclos de estudo.
+- Banco de pessoas e perguntas.
+- Documentos e anexos.
+- Highlights/evidências.
+- Métricas de PDI.
