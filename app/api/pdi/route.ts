@@ -214,6 +214,46 @@ export async function POST(request: Request) {
     const body = await request.json();
     const supabase = createAdminClient();
 
+    if (body.action === "create-track") {
+      const title = String(body.track?.developmentPoint || "").trim();
+      if (!title) {
+        return NextResponse.json({ message: "Informe o nome da nova trilha." }, { status: 400 });
+      }
+
+      const baseSlug = title
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 54) || "nova-trilha";
+
+      const slug = `${baseSlug}-${Date.now().toString(36)}`;
+
+      const payload = {
+        slug,
+        development_point: title,
+        objective: String(body.track?.objective || "").trim(),
+        action: String(body.track?.action || "").trim(),
+        how: String(body.track?.how || "").trim(),
+        expected_result: String(body.track?.expectedResult || "").trim(),
+        deadline: String(body.track?.deadline || "").trim(),
+        observation: String(body.track?.observation || "").trim(),
+        progress: Number(body.track?.progress || 0),
+        status: body.track?.status || "Não iniciado",
+      };
+
+      const { data: created, error } = await supabase
+        .from("pdi_tracks")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      await addHistory(created.id, "Trilha criada", body.author || "Almir");
+    }
+
     if (body.action === "update-track") {
       const track = body.track as PdiTrack;
       const trackId = await getDbTrackId(track.id);
