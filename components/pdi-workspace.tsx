@@ -116,6 +116,30 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
     await saveAction({ action: "reset" });
   }
 
+  async function editChecklistItem(itemId: string, currentContent: string) {
+    const content = window.prompt("Editar ação prática", currentContent);
+    if (content === null || !content.trim() || content.trim() === currentContent) return;
+
+    await saveAction({
+      action: "edit-checklist",
+      trackId: selected.id,
+      itemId,
+      content: content.trim(),
+      author,
+    });
+  }
+
+  async function deleteChecklistItem(itemId: string) {
+    if (!window.confirm("Excluir esta ação prática?")) return;
+
+    await saveAction({
+      action: "delete-checklist",
+      trackId: selected.id,
+      itemId,
+      author,
+    });
+  }
+
   async function editNote(noteId: string, currentContent: string) {
     const content = window.prompt("Editar comentário", currentContent);
     if (content === null || !content.trim() || content.trim() === currentContent) return;
@@ -293,85 +317,6 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
                   <div className="panel-heading"><span>01</span><h3>Ação principal</h3></div>
                   <p className="lead-copy">{selected.action}</p>
 
-                  <div className="checklist-block">
-                    <div className="section-subhead">
-                      <div>
-                        <span className="section-label">CHECKLIST</span>
-                        <strong>{completedChecklist}/{checklistTotal} concluídos</strong>
-                      </div>
-                      <span className="score-pill">{checklistScore}%</span>
-                    </div>
-
-                    <div className="checklist-progress">
-                      <i style={{ width: `${checklistScore}%` }} />
-                    </div>
-
-                    <div className="checklist-list">
-                      {selected.checklist.length === 0 ? (
-                        <div className="empty-inline">Adicione pequenos marcos para acompanhar essa ação.</div>
-                      ) : (
-                        selected.checklist.map((item) => (
-                          <div className={`checklist-row ${item.completed ? "done" : ""}`} key={item.id}>
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={item.completed}
-                                onChange={(event) =>
-                                  void saveAction({
-                                    action: "toggle-checklist",
-                                    trackId: selected.id,
-                                    itemId: item.id,
-                                    completed: event.target.checked,
-                                    author,
-                                  })
-                                }
-                              />
-                              <span>{item.content}</span>
-                            </label>
-                            <button
-                              className="icon-text-button"
-                              type="button"
-                              onClick={() =>
-                                void saveAction({
-                                  action: "delete-checklist",
-                                  trackId: selected.id,
-                                  itemId: item.id,
-                                  author,
-                                })
-                              }
-                            >
-                              Remover
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    <form
-                      className="inline-add-form"
-                      onSubmit={async (event) => {
-                        event.preventDefault();
-                        if (!newChecklistItem.trim()) return;
-                        const ok = await saveAction({
-                          action: "add-checklist",
-                          trackId: selected.id,
-                          content: newChecklistItem.trim(),
-                          author,
-                        });
-                        if (ok) setNewChecklistItem("");
-                      }}
-                    >
-                      <input
-                        value={newChecklistItem}
-                        onChange={(event) => setNewChecklistItem(event.target.value)}
-                        placeholder="Ex.: Conversar com Hugo sobre cronograma"
-                      />
-                      <button className="ghost-button" type="submit" disabled={!newChecklistItem.trim() || saving}>
-                        + Adicionar
-                      </button>
-                    </form>
-                  </div>
-
                   <div className="context-comments">
                     <div className="section-subhead">
                       <div>
@@ -423,9 +368,95 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
                   </div>
                 </article>
 
-                <article className="panel">
+                <article className="panel execution-panel">
                   <div className="panel-heading"><span>02</span><h3>Como executar</h3></div>
-                  <div className="multiline-copy">{selected.how}</div>
+                  <p className="execution-intro">
+                    Ações práticas para colocar a trilha em movimento. Marque o que já foi feito e edite os itens sempre que o plano mudar.
+                  </p>
+
+                  <div className="checklist-block execution-checklist">
+                    <div className="section-subhead">
+                      <div>
+                        <span className="section-label">AÇÕES PRÁTICAS</span>
+                        <strong>{completedChecklist}/{checklistTotal} concluídas</strong>
+                      </div>
+                      <span className="score-pill">{checklistScore}%</span>
+                    </div>
+
+                    <div className="checklist-progress">
+                      <i style={{ width: `${checklistScore}%` }} />
+                    </div>
+
+                    <div className="checklist-list">
+                      {selected.checklist.length === 0 ? (
+                        <div className="empty-inline">
+                          Nenhuma ação prática cadastrada. Adicione o primeiro passo abaixo.
+                        </div>
+                      ) : (
+                        selected.checklist.map((item, index) => (
+                          <div className={`checklist-row execution-row ${item.completed ? "done" : ""}`} key={item.id}>
+                            <label>
+                              <span className="execution-number">{String(index + 1).padStart(2, "0")}</span>
+                              <input
+                                type="checkbox"
+                                checked={item.completed}
+                                onChange={(event) =>
+                                  void saveAction({
+                                    action: "toggle-checklist",
+                                    trackId: selected.id,
+                                    itemId: item.id,
+                                    completed: event.target.checked,
+                                    author,
+                                  })
+                                }
+                              />
+                              <span>{item.content}</span>
+                            </label>
+
+                            <div className="item-actions execution-actions">
+                              <button
+                                type="button"
+                                onClick={() => void editChecklistItem(item.id, item.content)}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                className="danger"
+                                onClick={() => void deleteChecklistItem(item.id)}
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <form
+                      className="inline-add-form"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        if (!newChecklistItem.trim()) return;
+                        const ok = await saveAction({
+                          action: "add-checklist",
+                          trackId: selected.id,
+                          content: newChecklistItem.trim(),
+                          author,
+                        });
+                        if (ok) setNewChecklistItem("");
+                      }}
+                    >
+                      <input
+                        value={newChecklistItem}
+                        onChange={(event) => setNewChecklistItem(event.target.value)}
+                        placeholder="Adicionar nova ação prática..."
+                      />
+                      <button className="ghost-button" type="submit" disabled={!newChecklistItem.trim() || saving}>
+                        + Adicionar ação
+                      </button>
+                    </form>
+                  </div>
                 </article>
 
                 <article className="panel">
@@ -655,7 +686,10 @@ function EditModal({
           <label>Ponto de desenvolvimento<input value={draft.developmentPoint} onChange={(e) => field("developmentPoint", e.target.value)} /></label>
           <label>Objetivo<textarea rows={3} value={draft.objective} onChange={(e) => field("objective", e.target.value)} /></label>
           <label>Ação<textarea rows={2} value={draft.action} onChange={(e) => field("action", e.target.value)} /></label>
-          <label>Como executar<textarea rows={8} value={draft.how} onChange={(e) => field("how", e.target.value)} /></label>
+          <div className="edit-form-note">
+            <strong>Como executar</strong>
+            <span>As ações práticas agora são editadas diretamente no checklist da trilha.</span>
+          </div>
           <label>Resultado esperado<textarea rows={4} value={draft.expectedResult} onChange={(e) => field("expectedResult", e.target.value)} /></label>
           <div className="two-columns">
             <label>Prazo<input value={draft.deadline} onChange={(e) => field("deadline", e.target.value)} /></label>
