@@ -115,6 +115,54 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
     await saveAction({ action: "reset" });
   }
 
+  async function editNote(noteId: string, currentContent: string) {
+    const content = window.prompt("Editar comentário", currentContent);
+    if (content === null || !content.trim() || content.trim() === currentContent) return;
+
+    await saveAction({
+      action: "edit-note",
+      trackId: selected.id,
+      noteId,
+      content: content.trim(),
+      author,
+    });
+  }
+
+  async function deleteNote(noteId: string) {
+    if (!window.confirm("Excluir este comentário?")) return;
+
+    await saveAction({
+      action: "delete-note",
+      trackId: selected.id,
+      noteId,
+      author,
+    });
+  }
+
+  async function editUpdate(updateId: string, currentContent: string) {
+    const content = window.prompt("Editar atualização", currentContent);
+    if (content === null || !content.trim() || content.trim() === currentContent) return;
+
+    await saveAction({
+      action: "edit-update",
+      trackId: selected.id,
+      updateId,
+      content: content.trim(),
+      author,
+    });
+  }
+
+  async function deleteUpdate(updateId: string) {
+    if (!window.confirm("Excluir esta atualização?")) return;
+
+    await saveAction({
+      action: "delete-update",
+      trackId: selected.id,
+      updateId,
+      author,
+    });
+  }
+
   if (!selected) return null;
 
   return (
@@ -352,7 +400,13 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
                     <div className="notes-list">
                       {selected.notes.filter((note) => note.section === "action").map((note) => (
                         <div className="note-card" key={note.id}>
-                          <div><strong>{note.author}</strong><span>{formatDate(note.createdAt)}</span></div>
+                          <div className="note-card-head">
+                            <div><strong>{note.author}</strong><span>{formatDate(note.createdAt)}</span></div>
+                            <div className="item-actions">
+                              <button type="button" onClick={() => void editNote(note.id, note.content)}>Editar</button>
+                              <button type="button" className="danger" onClick={() => void deleteNote(note.id)}>Excluir</button>
+                            </div>
+                          </div>
                           <p>{note.content}</p>
                         </div>
                       ))}
@@ -406,8 +460,14 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
                           <span className="timeline-dot" />
                           <div>
                             <div className="timeline-meta">
-                              <strong>{update.author}</strong>
-                              <span>{formatDate(update.createdAt)}</span>
+                              <div>
+                                <strong>{update.author}</strong>
+                                <span>{formatDate(update.createdAt)}</span>
+                              </div>
+                              <div className="item-actions">
+                                <button type="button" onClick={() => void editUpdate(update.id, update.content)}>Editar</button>
+                                <button type="button" className="danger" onClick={() => void deleteUpdate(update.id)}>Excluir</button>
+                              </div>
                             </div>
                             <p>{update.content}</p>
                           </div>
@@ -462,8 +522,14 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
                   <div className="side-notes-list">
                     {selected.notes.filter((note) => note.section === "general").slice(0, 5).map((note) => (
                       <div className="side-note" key={note.id}>
+                        <div className="side-note-actions">
+                          <small>{note.author} · {formatDate(note.createdAt)}</small>
+                          <div className="item-actions">
+                            <button type="button" onClick={() => void editNote(note.id, note.content)}>Editar</button>
+                            <button type="button" className="danger" onClick={() => void deleteNote(note.id)}>Excluir</button>
+                          </div>
+                        </div>
                         <p>{note.content}</p>
-                        <small>{note.author} · {formatDate(note.createdAt)}</small>
                       </div>
                     ))}
                   </div>
