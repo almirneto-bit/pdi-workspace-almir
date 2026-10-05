@@ -100,7 +100,7 @@ async function loadTracks(): Promise<PdiTrack[]> {
       .map((item) => {
         const legacyMatch =
           !item.author_label && typeof item.content === "string"
-            ? item.content.match(/^\[([^\]]+)\]\s(.*)$/s)
+            ? item.content.match(/^\[([^\]]+)\]\s([\s\S]*)$/)
             : null;
 
         return {
