@@ -296,3 +296,184 @@ input[type="date"] {
   min-height: 42px;
   cursor: pointer;
 }
+
+
+.checklist-block,
+.context-comments {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.section-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.section-subhead > div {
+  display: grid;
+  gap: 4px;
+}
+
+.section-subhead strong {
+  font-size: 12px;
+}
+
+.section-label {
+  color: #8b919b;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.score-pill {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #effbd1;
+  color: #536400;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.checklist-progress {
+  height: 5px;
+  background: #eceef1;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.checklist-progress i {
+  display: block;
+  height: 100%;
+  background: #d4ef39;
+}
+
+.checklist-list {
+  display: grid;
+  gap: 8px;
+}
+
+.checklist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 11px;
+  background: #fff;
+}
+
+.checklist-row label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #343840;
+}
+
+.checklist-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #8200ff;
+}
+
+.checklist-row.done label span {
+  text-decoration: line-through;
+  color: #979ca5;
+}
+
+.icon-text-button {
+  border: 0;
+  background: transparent;
+  color: #9b5d5d;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.inline-add-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.empty-inline {
+  padding: 12px;
+  color: #969ba4;
+  background: var(--surface-2);
+  border: 1px dashed #d9dce1;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.comment-form {
+  display: grid;
+  gap: 8px;
+}
+
+.comment-form .primary-button {
+  justify-self: start;
+}
+
+.notes-list,
+.side-notes-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.note-card,
+.side-note {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px;
+  background: var(--surface-2);
+}
+
+.note-card > div {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.note-card strong {
+  font-size: 10px;
+}
+
+.note-card span,
+.side-note small {
+  color: #969ba4;
+  font-size: 9px;
+}
+
+.note-card p,
+.side-note p {
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+}
+
+.side-note-form {
+  display: grid;
+  gap: 8px;
+}
+
+.side-note-form textarea {
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .inline-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .checklist-row {
+    align-items: flex-start;
+  }
+}
