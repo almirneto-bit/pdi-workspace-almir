@@ -20,6 +20,9 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
   const [isEditing, setIsEditing] = useState(false);
   const [isDeadlineEditing, setIsDeadlineEditing] = useState(false);
   const [newUpdate, setNewUpdate] = useState("");
+  const [newChecklistItem, setNewChecklistItem] = useState("");
+  const [actionComment, setActionComment] = useState("");
+  const [generalInsight, setGeneralInsight] = useState("");
   const [author, setAuthor] = useState("Almir");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -86,6 +89,9 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
   );
   const totalUpdates = tracks.reduce((total, track) => total + track.updates.length, 0);
   const totalHistory = tracks.reduce((total, track) => total + track.history.length, 0);
+  const completedChecklist = selected?.checklist.filter((item) => item.completed).length ?? 0;
+  const checklistTotal = selected?.checklist.length ?? 0;
+  const checklistScore = checklistTotal ? Math.round((completedChecklist / checklistTotal) * 100) : 0;
 
   async function handleUpdateSubmit(event: FormEvent) {
     event.preventDefault();
@@ -229,6 +235,129 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
                 <article className="panel">
                   <div className="panel-heading"><span>01</span><h3>Ação principal</h3></div>
                   <p className="lead-copy">{selected.action}</p>
+
+                  <div className="checklist-block">
+                    <div className="section-subhead">
+                      <div>
+                        <span className="section-label">CHECKLIST</span>
+                        <strong>{completedChecklist}/{checklistTotal} concluídos</strong>
+                      </div>
+                      <span className="score-pill">{checklistScore}%</span>
+                    </div>
+
+                    <div className="checklist-progress">
+                      <i style={{ width: `${checklistScore}%` }} />
+                    </div>
+
+                    <div className="checklist-list">
+                      {selected.checklist.length === 0 ? (
+                        <div className="empty-inline">Adicione pequenos marcos para acompanhar essa ação.</div>
+                      ) : (
+                        selected.checklist.map((item) => (
+                          <div className={`checklist-row ${item.completed ? "done" : ""}`} key={item.id}>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={item.completed}
+                                onChange={(event) =>
+                                  void saveAction({
+                                    action: "toggle-checklist",
+                                    trackId: selected.id,
+                                    itemId: item.id,
+                                    completed: event.target.checked,
+                                    author,
+                                  })
+                                }
+                              />
+                              <span>{item.content}</span>
+                            </label>
+                            <button
+                              className="icon-text-button"
+                              type="button"
+                              onClick={() =>
+                                void saveAction({
+                                  action: "delete-checklist",
+                                  trackId: selected.id,
+                                  itemId: item.id,
+                                  author,
+                                })
+                              }
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <form
+                      className="inline-add-form"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        if (!newChecklistItem.trim()) return;
+                        const ok = await saveAction({
+                          action: "add-checklist",
+                          trackId: selected.id,
+                          content: newChecklistItem.trim(),
+                          author,
+                        });
+                        if (ok) setNewChecklistItem("");
+                      }}
+                    >
+                      <input
+                        value={newChecklistItem}
+                        onChange={(event) => setNewChecklistItem(event.target.value)}
+                        placeholder="Ex.: Conversar com Hugo sobre cronograma"
+                      />
+                      <button className="ghost-button" type="submit" disabled={!newChecklistItem.trim() || saving}>
+                        + Adicionar
+                      </button>
+                    </form>
+                  </div>
+
+                  <div className="context-comments">
+                    <div className="section-subhead">
+                      <div>
+                        <span className="section-label">COMENTÁRIOS DA AÇÃO</span>
+                        <strong>Insights e observações específicas</strong>
+                      </div>
+                    </div>
+
+                    <form
+                      className="comment-form"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        if (!actionComment.trim()) return;
+                        const ok = await saveAction({
+                          action: "add-note",
+                          trackId: selected.id,
+                          section: "action",
+                          content: actionComment.trim(),
+                          author,
+                        });
+                        if (ok) setActionComment("");
+                      }}
+                    >
+                      <textarea
+                        rows={3}
+                        value={actionComment}
+                        onChange={(event) => setActionComment(event.target.value)}
+                        placeholder="Adicione um comentário, aprendizado ou observação sobre essa ação..."
+                      />
+                      <button className="primary-button compact" type="submit" disabled={!actionComment.trim() || saving}>
+                        Comentar
+                      </button>
+                    </form>
+
+                    <div className="notes-list">
+                      {selected.notes.filter((note) => note.section === "action").map((note) => (
+                        <div className="note-card" key={note.id}>
+                          <div><strong>{note.author}</strong><span>{formatDate(note.createdAt)}</span></div>
+                          <p>{note.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </article>
 
                 <article className="panel">
@@ -290,9 +419,54 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
               </div>
 
               <aside className="side-column">
+                <button
+                  className="panel compact-panel deadline-card"
+                  type="button"
+                  onClick={() => setIsDeadlineEditing(true)}
+                >
+                  <div className="deadline-card-head">
+                    <p className="panel-kicker">PRAZO</p>
+                    <span className="edit-hint">Editar datas</span>
+                  </div>
+                  <strong className="deadline">{selected.deadline || "Definir prazo"}</strong>
+                  <span className="deadline-help">Clique para abrir o calendário</span>
+                </button>
+
                 <article className="panel compact-panel">
-                  <p className="panel-kicker">PRAZO</p>
-                  <strong className="deadline">{selected.deadline}</strong>
+                  <div className="side-heading"><h3>Insights gerais</h3><span>{selected.notes.filter((note) => note.section === "general").length}</span></div>
+                  <form
+                    className="side-note-form"
+                    onSubmit={async (event) => {
+                      event.preventDefault();
+                      if (!generalInsight.trim()) return;
+                      const ok = await saveAction({
+                        action: "add-note",
+                        trackId: selected.id,
+                        section: "general",
+                        content: generalInsight.trim(),
+                        author,
+                      });
+                      if (ok) setGeneralInsight("");
+                    }}
+                  >
+                    <textarea
+                      rows={3}
+                      value={generalInsight}
+                      onChange={(event) => setGeneralInsight(event.target.value)}
+                      placeholder="Insight, ideia, aprendizado..."
+                    />
+                    <button className="ghost-button full" type="submit" disabled={!generalInsight.trim() || saving}>
+                      Salvar insight
+                    </button>
+                  </form>
+                  <div className="side-notes-list">
+                    {selected.notes.filter((note) => note.section === "general").slice(0, 5).map((note) => (
+                      <div className="side-note" key={note.id}>
+                        <p>{note.content}</p>
+                        <small>{note.author} · {formatDate(note.createdAt)}</small>
+                      </div>
+                    ))}
+                  </div>
                 </article>
 
                 <article className="panel compact-panel">
