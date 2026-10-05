@@ -14,6 +14,71 @@ function formatDate(date: string) {
   }).format(new Date(date));
 }
 
+function checklistProgress(track: PdiTrack) {
+  const total = track.checklist.length;
+  if (!total) return 0;
+  const completed = track.checklist.filter((item) => item.completed).length;
+  return Math.round((completed / total) * 100);
+}
+
+function parsePtDate(value: string) {
+  const [day, month, year] = value.split("/").map(Number);
+  if (!day || !month || !year) return null;
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function getTimelineMetrics(deadline: string) {
+  const dates = deadline.match(/\d{2}\/\d{2}\/\d{4}/g) ?? [];
+  const start = dates[0] ? parsePtDate(dates[0]) : null;
+  const end = dates[1] ? parsePtDate(dates[1]) : null;
+
+  if (!end) {
+    return {
+      expectedProgress: null as number | null,
+      daysRemaining: null as number | null,
+      timingLabel: "Prazo sem período completo",
+      timingTone: "neutral",
+    };
+  }
+
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+  const dayMs = 1000 * 60 * 60 * 24;
+  const daysRemaining = Math.ceil((end.getTime() - now.getTime()) / dayMs);
+
+  let expectedProgress: number | null = null;
+  if (start) {
+    const duration = Math.max(end.getTime() - start.getTime(), dayMs);
+    const elapsed = Math.min(Math.max(now.getTime() - start.getTime(), 0), duration);
+    expectedProgress = Math.round((elapsed / duration) * 100);
+  }
+
+  let timingLabel = "";
+  let timingTone = "neutral";
+
+  if (daysRemaining < 0) {
+    timingLabel = `Prazo vencido há ${Math.abs(daysRemaining)} dia${Math.abs(daysRemaining) === 1 ? "" : "s"}`;
+    timingTone = "danger";
+  } else if (daysRemaining === 0) {
+    timingLabel = "Prazo termina hoje";
+    timingTone = "danger";
+  } else if (daysRemaining <= 3) {
+    timingLabel = `Faltam ${daysRemaining} dia${daysRemaining === 1 ? "" : "s"}`;
+    timingTone = "danger";
+  } else if (daysRemaining <= 7) {
+    timingLabel = `Faltam ${daysRemaining} dias`;
+    timingTone = "warning";
+  } else if (daysRemaining <= 14) {
+    timingLabel = `Faltam ${daysRemaining} dias`;
+    timingTone = "attention";
+  } else {
+    timingLabel = `Faltam ${daysRemaining} dias`;
+    timingTone = "neutral";
+  }
+
+  return { expectedProgress, daysRemaining, timingLabel, timingTone };
+}
+
 export default function PdiWorkspace({ authConfigured }: { authConfigured: boolean }) {
   const [tracks, setTracks] = useState<PdiTrack[]>(seedTracks);
   const [selectedId, setSelectedId] = useState(seedTracks[0].id);
@@ -86,13 +151,36 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
   );
 
   const averageProgress = Math.round(
-    tracks.reduce((total, track) => total + track.progress, 0) / Math.max(tracks.length, 1),
+    tracks.reduce((total, track) => total + checklistProgress(track), 0) / Math.max(tracks.length, 1),
   );
   const totalUpdates = tracks.reduce((total, track) => total + track.updates.length, 0);
   const totalHistory = tracks.reduce((total, track) => total + track.history.length, 0);
   const completedChecklist = selected?.checklist.filter((item) => item.completed).length ?? 0;
   const checklistTotal = selected?.checklist.length ?? 0;
   const checklistScore = checklistTotal ? Math.round((completedChecklist / checklistTotal) * 100) : 0;
+  const timeline = getTimelineMetrics(selected?.deadline ?? "");
+  const expectedProgress = timeline.expectedProgress;
+  const progressGap = expectedProgress === null ? null : checklistScore - expectedProgress;
+  const paceLabel =
+    expectedProgress === null
+      ? "Sem comparação"
+      : progressGap! >= 10
+        ? "Adiantado"
+        : progressGap! >= -10
+          ? "No ritmo"
+          : progressGap! >= -25
+            ? "Atenção"
+            : "Atrasado";
+  const paceTone =
+    paceLabel === "Adiantado"
+      ? "ahead"
+      : paceLabel === "No ritmo"
+        ? "on-track"
+        : paceLabel === "Atenção"
+          ? "attention"
+          : paceLabel === "Atrasado"
+            ? "danger"
+            : "neutral";
 
   async function handleUpdateSubmit(event: FormEvent) {
     event.preventDefault();
@@ -298,17 +386,54 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
             <section className="track-hero">
               <div className="track-title-row">
                 <div>
-                  <span className="status-pill">{selected.status}</span>
+                  <div className="hero-status-row">
+                    <span className="status-pill">
+                      {checklistScore === 100 ? "Concluído" : checklistScore > 0 ? "Em andamento" : "Não iniciado"}
+                    </span>
+                    <span className={`pace-pill ${paceTone}`}>{paceLabel}</span>
+                  </div>
                   <h2>{selected.developmentPoint}</h2>
                   <p>{selected.objective}</p>
                 </div>
                 <div
                   className="progress-ring"
-                  style={{ "--progress": `${selected.progress * 3.6}deg` } as CSSProperties}
+                  style={{ "--progress": `${checklistScore * 3.6}deg` } as CSSProperties}
                 >
-                  <div><strong>{selected.progress}%</strong><span>progresso</span></div>
+                  <div><strong>{checklistScore}%</strong><span>progresso real</span></div>
                 </div>
               </div>
+            </section>
+
+            <section className="progress-overview">
+              <article className="progress-metric">
+                <span>PROGRESSO REAL</span>
+                <strong>{checklistScore}%</strong>
+                <small>{completedChecklist} de {checklistTotal} ações concluídas</small>
+              </article>
+
+              <article className="progress-metric">
+                <span>ESPERADO HOJE</span>
+                <strong>{expectedProgress === null ? "—" : `${expectedProgress}%`}</strong>
+                <small>{expectedProgress === null ? "Defina início e fim para comparar" : "com base no período da trilha"}</small>
+              </article>
+
+              <article className={`progress-metric pace-card ${paceTone}`}>
+                <span>RITMO</span>
+                <strong>{paceLabel}</strong>
+                <small>
+                  {progressGap === null
+                    ? "Sem referência de calendário"
+                    : progressGap >= 0
+                      ? `${progressGap} p.p. acima do esperado`
+                      : `${Math.abs(progressGap)} p.p. abaixo do esperado`}
+                </small>
+              </article>
+
+              <article className={`progress-metric deadline-alert ${timeline.timingTone}`}>
+                <span>PRAZO</span>
+                <strong>{timeline.timingLabel}</strong>
+                <small>{selected.deadline || "Defina um período para ativar alertas"}</small>
+              </article>
             </section>
 
             <section className="main-grid">
@@ -529,6 +654,7 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
                     <span className="edit-hint">Editar datas</span>
                   </div>
                   <strong className="deadline">{selected.deadline || "Definir prazo"}</strong>
+                  <span className={`deadline-countdown ${timeline.timingTone}`}>{timeline.timingLabel}</span>
                   <span className="deadline-help">Clique para abrir o calendário</span>
                 </button>
 
@@ -701,17 +827,10 @@ function EditModal({
               </select>
             </label>
           </div>
-          <label>
-            Progresso: {draft.progress}%
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="5"
-              value={draft.progress}
-              onChange={(e) => field("progress", Number(e.target.value))}
-            />
-          </label>
+          <div className="edit-form-note">
+            <strong>Progresso automático</strong>
+            <span>O percentual agora é calculado pelas ações concluídas em "Como executar". Não há ajuste manual.</span>
+          </div>
           <label>Observação<textarea rows={3} value={draft.observation} onChange={(e) => field("observation", e.target.value)} /></label>
         </div>
 
