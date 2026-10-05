@@ -957,3 +957,68 @@ select:focus {
   font-family: var(--font-body);
   font-size: 12px;
 }
+
+
+/* Execution checklist lives under "Como executar" */
+.execution-panel .execution-intro {
+  margin: -4px 0 18px;
+  max-width: 760px;
+  color: #666b75 !important;
+  font-size: 12px !important;
+}
+
+.execution-checklist {
+  margin: 0;
+}
+
+.execution-row {
+  gap: 14px;
+}
+
+.execution-row label {
+  flex: 1;
+  min-width: 0;
+}
+
+.execution-number {
+  min-width: 24px;
+  color: #8200ff;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-decoration: none !important;
+}
+
+.execution-actions {
+  flex: 0 0 auto;
+}
+
+.edit-form-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--ice);
+  border: 1px solid #d8e2fb;
+  border-radius: 9px;
+}
+
+.edit-form-note strong {
+  font-size: 11px;
+}
+
+.edit-form-note span {
+  color: #646a74;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .execution-row {
+    display: grid;
+  }
+
+  .execution-actions {
+    padding-left: 49px;
+  }
+}
