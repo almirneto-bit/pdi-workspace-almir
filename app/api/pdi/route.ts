@@ -75,12 +75,19 @@ async function loadTracks(): Promise<PdiTrack[]> {
     status: track.status,
     updates: (updates ?? [])
       .filter((item) => item.track_id === track.id)
-      .map((item) => ({
-        id: item.id,
-        author: item.author_label || "Usuário",
-        content: item.content,
-        createdAt: item.created_at,
-      })),
+      .map((item) => {
+        const legacyMatch =
+          !item.author_label && typeof item.content === "string"
+            ? item.content.match(/^\[([^\]]+)\]\s(.*)$/s)
+            : null;
+
+        return {
+          id: item.id,
+          author: item.author_label || legacyMatch?.[1] || "Usuário",
+          content: legacyMatch?.[2] || item.content,
+          createdAt: item.created_at,
+        };
+      }),
     history: (history ?? [])
       .filter((item) => item.track_id === track.id)
       .map((item) => ({
@@ -186,13 +193,21 @@ export async function POST(request: Request) {
 
       if (updateError) throw updateError;
 
-      const { error: historyError } = await supabase.from("pdi_history").insert({
+      const historyPayload = {
         track_id: dbTrack.id,
         actor_label: body.author || "Almir",
         label: body.label || "Planejamento atualizado",
-      });
+      };
 
-      if (historyError) throw historyError;
+      const { error: historyError } = await supabase.from("pdi_history").insert(historyPayload);
+
+      if (historyError) {
+        const { error: legacyHistoryError } = await supabase.from("pdi_history").insert({
+          track_id: dbTrack.id,
+          label: body.label || "Planejamento atualizado",
+        });
+        if (legacyHistoryError) throw historyError;
+      }
     }
 
     if (body.action === "add-update") {
@@ -212,15 +227,28 @@ export async function POST(request: Request) {
         content: body.content,
       });
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        const { error: legacyUpdateError } = await supabase.from("pdi_updates").insert({
+          track_id: dbTrack.id,
+          content: `[${author}] ${body.content}`,
+        });
+        if (legacyUpdateError) throw updateError;
+      }
 
+      const historyLabel = `Nova atualização adicionada por ${author}`;
       const { error: historyError } = await supabase.from("pdi_history").insert({
         track_id: dbTrack.id,
         actor_label: author,
-        label: `Nova atualização adicionada por ${author}`,
+        label: historyLabel,
       });
 
-      if (historyError) throw historyError;
+      if (historyError) {
+        const { error: legacyHistoryError } = await supabase.from("pdi_history").insert({
+          track_id: dbTrack.id,
+          label: historyLabel,
+        });
+        if (legacyHistoryError) throw historyError;
+      }
     }
 
     if (body.action === "reset") {
