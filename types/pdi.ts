@@ -11,6 +11,21 @@ export type PdiHistory = {
   createdAt: string;
 };
 
+export type PdiChecklistItem = {
+  id: string;
+  content: string;
+  completed: boolean;
+  createdAt: string;
+};
+
+export type PdiNote = {
+  id: string;
+  author: string;
+  section: "action" | "general";
+  content: string;
+  createdAt: string;
+};
+
 export type PdiTrack = {
   id: string;
   developmentPoint: string;
@@ -24,4 +39,6 @@ export type PdiTrack = {
   status: "Não iniciado" | "Em andamento" | "Concluído";
   updates: PdiUpdate[];
   history: PdiHistory[];
+  checklist: PdiChecklistItem[];
+  notes: PdiNote[];
 };
