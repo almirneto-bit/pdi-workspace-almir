@@ -31,6 +31,30 @@ async function ensureSeedData() {
   if (insertError) throw insertError;
 }
 
+async function getDbTrackId(slug: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.from("pdi_tracks").select("id").eq("slug", slug).single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+async function addHistory(trackId: string, label: string, actor = "Almir") {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("pdi_history").insert({
+    track_id: trackId,
+    actor_label: actor,
+    label,
+  });
+
+  if (error) {
+    const { error: legacyError } = await supabase.from("pdi_history").insert({
+      track_id: trackId,
+      label,
+    });
+    if (legacyError) throw error;
+  }
+}
+
 async function loadTracks(): Promise<PdiTrack[]> {
   await ensureSeedData();
   const supabase = createAdminClient();
@@ -43,24 +67,22 @@ async function loadTracks(): Promise<PdiTrack[]> {
   if (error) throw error;
 
   const ids = (tracks ?? []).map((track) => track.id);
-  const [{ data: updates, error: updatesError }, { data: history, error: historyError }] =
+  const empty = { data: [], error: null };
+
+  const [updatesResult, historyResult, checklistResult, notesResult] =
     ids.length > 0
       ? await Promise.all([
-          supabase
-            .from("pdi_updates")
-            .select("*")
-            .in("track_id", ids)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("pdi_history")
-            .select("*")
-            .in("track_id", ids)
-            .order("created_at", { ascending: false }),
+          supabase.from("pdi_updates").select("*").in("track_id", ids).order("created_at", { ascending: false }),
+          supabase.from("pdi_history").select("*").in("track_id", ids).order("created_at", { ascending: false }),
+          supabase.from("pdi_checklist_items").select("*").in("track_id", ids).order("created_at", { ascending: true }),
+          supabase.from("pdi_notes").select("*").in("track_id", ids).order("created_at", { ascending: false }),
         ])
-      : [{ data: [], error: null }, { data: [], error: null }];
+      : [empty, empty, empty, empty];
 
-  if (updatesError) throw updatesError;
-  if (historyError) throw historyError;
+  if (updatesResult.error) throw updatesResult.error;
+  if (historyResult.error) throw historyResult.error;
+  if (checklistResult.error) throw checklistResult.error;
+  if (notesResult.error) throw notesResult.error;
 
   return (tracks ?? []).map((track) => ({
     id: track.slug,
@@ -73,7 +95,7 @@ async function loadTracks(): Promise<PdiTrack[]> {
     observation: track.observation ?? "",
     progress: track.progress,
     status: track.status,
-    updates: (updates ?? [])
+    updates: (updatesResult.data ?? [])
       .filter((item) => item.track_id === track.id)
       .map((item) => {
         const legacyMatch =
@@ -88,11 +110,28 @@ async function loadTracks(): Promise<PdiTrack[]> {
           createdAt: item.created_at,
         };
       }),
-    history: (history ?? [])
+    history: (historyResult.data ?? [])
       .filter((item) => item.track_id === track.id)
       .map((item) => ({
         id: item.id,
         label: item.label,
+        createdAt: item.created_at,
+      })),
+    checklist: (checklistResult.data ?? [])
+      .filter((item) => item.track_id === track.id)
+      .map((item) => ({
+        id: item.id,
+        content: item.content,
+        completed: item.completed,
+        createdAt: item.created_at,
+      })),
+    notes: (notesResult.data ?? [])
+      .filter((item) => item.track_id === track.id)
+      .map((item) => ({
+        id: item.id,
+        author: item.author_label || "Almir",
+        section: item.section,
+        content: item.content,
         createdAt: item.created_at,
       })),
   })) as PdiTrack[];
@@ -124,11 +163,22 @@ function explainSupabaseError(error: unknown) {
     };
   }
 
+  if (
+    lower.includes("pdi_checklist_items") ||
+    lower.includes("pdi_notes")
+  ) {
+    return {
+      code: "PDI_V2_MIGRATION",
+      message:
+        "A atualização de checklist e comentários ainda não foi aplicada no Supabase. Execute supabase/migration_v2.sql no SQL Editor.",
+    };
+  }
+
   if (lower.includes("does not exist") || lower.includes("schema cache") || lower.includes("relation")) {
     return {
       code: "SUPABASE_SCHEMA",
       message:
-        "As tabelas do PDI não foram encontradas no Supabase. Execute novamente o arquivo supabase/schema.sql no SQL Editor.",
+        "As tabelas do PDI não foram encontradas no Supabase. Execute o arquivo supabase/schema.sql no SQL Editor.",
     };
   }
 
@@ -166,14 +216,7 @@ export async function POST(request: Request) {
 
     if (body.action === "update-track") {
       const track = body.track as PdiTrack;
-
-      const { data: dbTrack, error: findError } = await supabase
-        .from("pdi_tracks")
-        .select("id")
-        .eq("slug", track.id)
-        .single();
-
-      if (findError) throw findError;
+      const trackId = await getDbTrackId(track.id);
 
       const { error: updateError } = await supabase
         .from("pdi_tracks")
@@ -189,80 +232,86 @@ export async function POST(request: Request) {
           status: track.status,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", dbTrack.id);
+        .eq("id", trackId);
 
       if (updateError) throw updateError;
-
-      const historyPayload = {
-        track_id: dbTrack.id,
-        actor_label: body.author || "Almir",
-        label: body.label || "Planejamento atualizado",
-      };
-
-      const { error: historyError } = await supabase.from("pdi_history").insert(historyPayload);
-
-      if (historyError) {
-        const { error: legacyHistoryError } = await supabase.from("pdi_history").insert({
-          track_id: dbTrack.id,
-          label: body.label || "Planejamento atualizado",
-        });
-        if (legacyHistoryError) throw historyError;
-      }
+      await addHistory(trackId, body.label || "Planejamento atualizado", body.author || "Almir");
     }
 
     if (body.action === "add-update") {
-      const { data: dbTrack, error: findError } = await supabase
-        .from("pdi_tracks")
-        .select("id")
-        .eq("slug", body.trackId)
-        .single();
-
-      if (findError) throw findError;
-
+      const trackId = await getDbTrackId(body.trackId);
       const author = body.author || "Almir";
 
       const { error: updateError } = await supabase.from("pdi_updates").insert({
-        track_id: dbTrack.id,
+        track_id: trackId,
         author_label: author,
         content: body.content,
       });
 
       if (updateError) {
         const { error: legacyUpdateError } = await supabase.from("pdi_updates").insert({
-          track_id: dbTrack.id,
+          track_id: trackId,
           content: `[${author}] ${body.content}`,
         });
         if (legacyUpdateError) throw updateError;
       }
 
-      const historyLabel = `Nova atualização adicionada por ${author}`;
-      const { error: historyError } = await supabase.from("pdi_history").insert({
-        track_id: dbTrack.id,
-        actor_label: author,
-        label: historyLabel,
-      });
+      await addHistory(trackId, `Nova atualização adicionada por ${author}`, author);
+    }
 
-      if (historyError) {
-        const { error: legacyHistoryError } = await supabase.from("pdi_history").insert({
-          track_id: dbTrack.id,
-          label: historyLabel,
-        });
-        if (legacyHistoryError) throw historyError;
-      }
+    if (body.action === "add-checklist") {
+      const trackId = await getDbTrackId(body.trackId);
+      const { error } = await supabase.from("pdi_checklist_items").insert({
+        track_id: trackId,
+        content: body.content,
+        completed: false,
+      });
+      if (error) throw error;
+      await addHistory(trackId, "Novo item adicionado ao checklist", body.author || "Almir");
+    }
+
+    if (body.action === "toggle-checklist") {
+      const { error } = await supabase
+        .from("pdi_checklist_items")
+        .update({ completed: Boolean(body.completed), completed_at: body.completed ? new Date().toISOString() : null })
+        .eq("id", body.itemId);
+      if (error) throw error;
+
+      const trackId = await getDbTrackId(body.trackId);
+      await addHistory(trackId, body.completed ? "Item do checklist concluído" : "Item do checklist reaberto", body.author || "Almir");
+    }
+
+    if (body.action === "delete-checklist") {
+      const { error } = await supabase.from("pdi_checklist_items").delete().eq("id", body.itemId);
+      if (error) throw error;
+      const trackId = await getDbTrackId(body.trackId);
+      await addHistory(trackId, "Item removido do checklist", body.author || "Almir");
+    }
+
+    if (body.action === "add-note") {
+      const trackId = await getDbTrackId(body.trackId);
+      const { error } = await supabase.from("pdi_notes").insert({
+        track_id: trackId,
+        author_label: body.author || "Almir",
+        section: body.section === "action" ? "action" : "general",
+        content: body.content,
+      });
+      if (error) throw error;
+      await addHistory(
+        trackId,
+        body.section === "action" ? "Comentário adicionado à ação" : "Insight geral adicionado",
+        body.author || "Almir",
+      );
     }
 
     if (body.action === "reset") {
-      const { error: deleteHistoryError } = await supabase
-        .from("pdi_history")
-        .delete()
-        .neq("id", "00000000-0000-0000-0000-000000000000");
-      if (deleteHistoryError) throw deleteHistoryError;
-
-      const { error: deleteUpdatesError } = await supabase
-        .from("pdi_updates")
-        .delete()
-        .neq("id", "00000000-0000-0000-0000-000000000000");
-      if (deleteUpdatesError) throw deleteUpdatesError;
+      for (const table of ["pdi_notes", "pdi_checklist_items", "pdi_history", "pdi_updates"]) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .neq("id", "00000000-0000-0000-0000-000000000000");
+        if (error) throw error;
+      }
 
       for (const track of seedTracks) {
         const { error: resetError } = await supabase
