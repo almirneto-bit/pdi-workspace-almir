@@ -19,7 +19,7 @@ async function ensureSeedData() {
     development_point: track.developmentPoint,
     objective: track.objective,
     action: track.action,
-    how: track.how,
+    how: "",
     expected_result: track.expectedResult,
     deadline: track.deadline,
     observation: track.observation,
@@ -36,6 +36,20 @@ async function getDbTrackId(slug: string) {
   const { data, error } = await supabase.from("pdi_tracks").select("id").eq("slug", slug).single();
   if (error) throw error;
   return data.id as string;
+}
+
+function parseExecutionItems(how: string) {
+  const normalized = String(how || "").trim();
+  if (!normalized) return [];
+
+  const numbered = normalized
+    .split(/\n\s*\n|\n(?=\s*\d+[.)]\s)/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => item.replace(/^\d+[.)]\s*/, "").trim())
+    .filter(Boolean);
+
+  return numbered.length > 1 ? numbered : [normalized];
 }
 
 async function addHistory(trackId: string, label: string, actor = "Almir") {
@@ -69,7 +83,7 @@ async function loadTracks(): Promise<PdiTrack[]> {
   const ids = (tracks ?? []).map((track) => track.id);
   const empty = { data: [], error: null };
 
-  const [updatesResult, historyResult, checklistResult, notesResult] =
+  const [updatesResult, historyResult, firstChecklistResult, notesResult] =
     ids.length > 0
       ? await Promise.all([
           supabase.from("pdi_updates").select("*").in("track_id", ids).order("created_at", { ascending: false }),
@@ -81,8 +95,45 @@ async function loadTracks(): Promise<PdiTrack[]> {
 
   if (updatesResult.error) throw updatesResult.error;
   if (historyResult.error) throw historyResult.error;
-  if (checklistResult.error) throw checklistResult.error;
+  if (firstChecklistResult.error) throw firstChecklistResult.error;
   if (notesResult.error) throw notesResult.error;
+
+  // Migração automática da V1: os antigos itens numerados de "Como executar"
+  // passam a ser itens persistentes do checklist. Depois disso o campo textual
+  // é limpo, evitando recriar itens caso todos sejam removidos posteriormente.
+  let checklistData = firstChecklistResult.data ?? [];
+
+  for (const track of tracks ?? []) {
+    const hasChecklist = checklistData.some((item) => item.track_id === track.id);
+    const executionItems = parseExecutionItems(track.how);
+
+    if (!hasChecklist && executionItems.length > 0) {
+      const { error: insertError } = await supabase.from("pdi_checklist_items").insert(
+        executionItems.map((content) => ({
+          track_id: track.id,
+          content,
+          completed: false,
+        })),
+      );
+      if (insertError) throw insertError;
+
+      const { error: clearError } = await supabase
+        .from("pdi_tracks")
+        .update({ how: "", updated_at: new Date().toISOString() })
+        .eq("id", track.id);
+      if (clearError) throw clearError;
+    }
+  }
+
+  if ((tracks ?? []).some((track) => parseExecutionItems(track.how).length > 0)) {
+    const refreshed = await supabase
+      .from("pdi_checklist_items")
+      .select("*")
+      .in("track_id", ids)
+      .order("created_at", { ascending: true });
+    if (refreshed.error) throw refreshed.error;
+    checklistData = refreshed.data ?? [];
+  }
 
   return (tracks ?? []).map((track) => ({
     id: track.slug,
@@ -117,7 +168,7 @@ async function loadTracks(): Promise<PdiTrack[]> {
         label: item.label,
         createdAt: item.created_at,
       })),
-    checklist: (checklistResult.data ?? [])
+    checklist: checklistData
       .filter((item) => item.track_id === track.id)
       .map((item) => ({
         id: item.id,
@@ -319,6 +370,22 @@ export async function POST(request: Request) {
 
       const trackId = await getDbTrackId(body.trackId);
       await addHistory(trackId, body.completed ? "Item do checklist concluído" : "Item do checklist reaberto", body.author || "Almir");
+    }
+
+    if (body.action === "edit-checklist") {
+      const content = String(body.content || "").trim();
+      if (!content) {
+        return NextResponse.json({ message: "O item não pode ficar vazio." }, { status: 400 });
+      }
+
+      const { error } = await supabase
+        .from("pdi_checklist_items")
+        .update({ content })
+        .eq("id", body.itemId);
+      if (error) throw error;
+
+      const trackId = await getDbTrackId(body.trackId);
+      await addHistory(trackId, "Ação prática do checklist editada", body.author || "Almir");
     }
 
     if (body.action === "delete-checklist") {
