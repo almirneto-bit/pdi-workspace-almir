@@ -1,0 +1,42 @@
+name: Package V1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/package-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V1
+        uses: actions/checkout@v4
+
+      - name: Install RAR
+        run: |
+          curl -L https://www.rarlab.com/rar/rarlinux-x64-723.tar.gz -o /tmp/rar.tar.gz
+          tar -xzf /tmp/rar.tar.gz -C /tmp
+          sudo cp /tmp/rar/rar /usr/local/bin/rar
+
+      - name: Prepare clean V1 package
+        run: |
+          mkdir -p /tmp/pdi-workspace-almir-v1
+          rsync -a             --exclude=".git"             --exclude=".github"             --exclude="node_modules"             --exclude=".next"             --exclude=".env"             --exclude=".env.local"             ./ /tmp/pdi-workspace-almir-v1/
+
+      - name: Create RAR
+        run: |
+          cd /tmp
+          rar a -r -m5 pdi-workspace-almir-v1.0.0.rar pdi-workspace-almir-v1
+
+      - name: Upload V1 RAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdi-workspace-almir-v1.0.0
+          path: /tmp/pdi-workspace-almir-v1.0.0.rar
+          if-no-files-found: error
+          retention-days: 30
