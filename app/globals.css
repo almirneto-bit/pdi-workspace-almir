@@ -1022,3 +1022,144 @@ select:focus {
     padding-left: 49px;
   }
 }
+
+
+/* Automatic progress + timeline */
+.hero-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pace-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+
+.pace-pill.ahead,
+.pace-card.ahead {
+  background: #effbd1;
+  color: #465600;
+  border-color: #b9d50e;
+}
+
+.pace-pill.on-track,
+.pace-card.on-track {
+  background: var(--ice);
+  color: #304165;
+  border-color: #b8c8ea;
+}
+
+.pace-pill.attention,
+.pace-card.attention,
+.deadline-alert.attention,
+.deadline-countdown.attention {
+  background: #fff7d6;
+  color: #795f00;
+  border-color: #e9cf5b;
+}
+
+.pace-pill.danger,
+.pace-card.danger,
+.deadline-alert.danger,
+.deadline-countdown.danger {
+  background: #fff0ef;
+  color: #a5322a;
+  border-color: #efb2ad;
+}
+
+.pace-pill.neutral,
+.pace-card.neutral {
+  background: #f5f6f8;
+  color: #676c76;
+  border-color: #dcdfe5;
+}
+
+.progress-overview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.progress-metric {
+  min-height: 112px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 17px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.progress-metric > span {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  color: #777d87;
+}
+
+.progress-metric > strong {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: -.03em;
+}
+
+.progress-metric > small {
+  color: #747983;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.progress-metric.pace-card,
+.progress-metric.deadline-alert {
+  border-width: 1px;
+}
+
+.deadline-countdown {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #f5f6f8;
+  color: #666b75;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.deadline-countdown.warning,
+.deadline-alert.warning {
+  background: #fff4df;
+  color: #8b5a00;
+  border-color: #e7bd69;
+}
+
+.deadline-countdown.neutral,
+.deadline-alert.neutral {
+  background: var(--ice);
+  color: #4e5d7a;
+  border-color: #cfdbf5;
+}
+
+@media (max-width: 1000px) {
+  .progress-overview {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .progress-overview {
+    grid-template-columns: 1fr;
+  }
+}
