@@ -18,6 +18,7 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
   const [tracks, setTracks] = useState<PdiTrack[]>(seedTracks);
   const [selectedId, setSelectedId] = useState(seedTracks[0].id);
   const [isEditing, setIsEditing] = useState(false);
+  const [isDeadlineEditing, setIsDeadlineEditing] = useState(false);
   const [newUpdate, setNewUpdate] = useState("");
   const [author, setAuthor] = useState("Almir");
   const [loading, setLoading] = useState(true);
@@ -316,6 +317,23 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
         )}
       </section>
 
+      {isDeadlineEditing && (
+        <DeadlineModal
+          track={selected}
+          saving={saving}
+          onClose={() => setIsDeadlineEditing(false)}
+          onSave={async (deadline) => {
+            const ok = await saveAction({
+              action: "update-track",
+              track: { ...selected, deadline },
+              author: "Almir",
+              label: "Prazo atualizado",
+            });
+            if (ok) setIsDeadlineEditing(false);
+          }}
+        />
+      )}
+
       {isEditing && (
         <EditModal
           track={selected}
@@ -395,6 +413,110 @@ function EditModal({
           <button className="ghost-button" onClick={onClose} disabled={saving}>Cancelar</button>
           <button className="primary-button compact" onClick={() => onSave(draft)} disabled={saving}>
             {saving ? "Salvando..." : "Salvar alterações"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function toInputDate(value: string) {
+  const [day, month, year] = value.split("/");
+  if (!day || !month || !year) return "";
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function fromInputDate(value: string) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function extractDeadlineDates(deadline: string) {
+  const dates = deadline.match(/\d{2}\/\d{2}\/\d{4}/g) ?? [];
+  return {
+    start: dates[0] ? toInputDate(dates[0]) : "",
+    end: dates[1] ? toInputDate(dates[1]) : "",
+  };
+}
+
+function DeadlineModal({
+  track,
+  saving,
+  onClose,
+  onSave,
+}: {
+  track: PdiTrack;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (deadline: string) => void | Promise<void>;
+}) {
+  const initial = extractDeadlineDates(track.deadline);
+  const [start, setStart] = useState(initial.start);
+  const [end, setEnd] = useState(initial.end);
+
+  function buildDeadline() {
+    if (start && end) return `${fromInputDate(start)} → ${fromInputDate(end)}`;
+    if (start) return `A partir de ${fromInputDate(start)}`;
+    if (end) return `Até ${fromInputDate(end)}`;
+    return "";
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal-card deadline-modal">
+        <div className="modal-header">
+          <div>
+            <p className="eyebrow">PRAZO</p>
+            <h2>Editar período</h2>
+          </div>
+          <button className="close-button" onClick={onClose} aria-label="Fechar">×</button>
+        </div>
+
+        <div className="edit-form">
+          {track.deadline && !initial.start && (
+            <div className="current-deadline-note">
+              <span>Prazo atual</span>
+              <strong>{track.deadline}</strong>
+            </div>
+          )}
+
+          <div className="two-columns">
+            <label>
+              Data inicial
+              <input
+                type="date"
+                value={start}
+                onChange={(event) => setStart(event.target.value)}
+              />
+            </label>
+
+            <label>
+              Data final
+              <input
+                type="date"
+                value={end}
+                min={start || undefined}
+                onChange={(event) => setEnd(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="deadline-preview">
+            <span>Novo prazo</span>
+            <strong>{buildDeadline() || "Nenhuma data selecionada"}</strong>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="ghost-button" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button
+            className="primary-button compact"
+            onClick={() => onSave(buildDeadline())}
+            disabled={saving || (!start && !end)}
+          >
+            {saving ? "Salvando..." : "Salvar prazo"}
           </button>
         </div>
       </div>
