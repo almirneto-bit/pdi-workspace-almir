@@ -1,5 +1,7 @@
 # PDI Workspace · Almir
 
+> Deploy sync: automatic progress + deadline alerts enabled.
+
 Workspace pessoal para acompanhar o Plano de Desenvolvimento Individual, inicialmente baseado na planilha `[PDI 2025.2] Planejamento do Time_Almir_may26.xlsx`.
 
 ## Estado atual
