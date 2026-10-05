@@ -52,6 +52,32 @@ function parseExecutionItems(how: string) {
   return numbered.length > 1 ? numbered : [normalized];
 }
 
+async function syncTrackProgress(trackId: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("pdi_checklist_items")
+    .select("completed")
+    .eq("track_id", trackId);
+
+  if (error) throw error;
+
+  const total = data?.length ?? 0;
+  const completed = data?.filter((item) => item.completed).length ?? 0;
+  const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  const { error: updateError } = await supabase
+    .from("pdi_tracks")
+    .update({
+      progress,
+      status: progress === 100 ? "Concluído" : progress > 0 ? "Em andamento" : "Não iniciado",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", trackId);
+
+  if (updateError) throw updateError;
+  return progress;
+}
+
 async function addHistory(trackId: string, label: string, actor = "Almir") {
   const supabase = createAdminClient();
   const { error } = await supabase.from("pdi_history").insert({
@@ -358,6 +384,7 @@ export async function POST(request: Request) {
         completed: false,
       });
       if (error) throw error;
+      await syncTrackProgress(trackId);
       await addHistory(trackId, "Novo item adicionado ao checklist", body.author || "Almir");
     }
 
@@ -369,6 +396,7 @@ export async function POST(request: Request) {
       if (error) throw error;
 
       const trackId = await getDbTrackId(body.trackId);
+      await syncTrackProgress(trackId);
       await addHistory(trackId, body.completed ? "Item do checklist concluído" : "Item do checklist reaberto", body.author || "Almir");
     }
 
@@ -392,6 +420,7 @@ export async function POST(request: Request) {
       const { error } = await supabase.from("pdi_checklist_items").delete().eq("id", body.itemId);
       if (error) throw error;
       const trackId = await getDbTrackId(body.trackId);
+      await syncTrackProgress(trackId);
       await addHistory(trackId, "Item removido do checklist", body.author || "Almir");
     }
 
