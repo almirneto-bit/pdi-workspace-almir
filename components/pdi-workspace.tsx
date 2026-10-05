@@ -18,6 +18,7 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
   const [tracks, setTracks] = useState<PdiTrack[]>(seedTracks);
   const [selectedId, setSelectedId] = useState(seedTracks[0].id);
   const [isEditing, setIsEditing] = useState(false);
+  const [isCreatingTrack, setIsCreatingTrack] = useState(false);
   const [isDeadlineEditing, setIsDeadlineEditing] = useState(false);
   const [newUpdate, setNewUpdate] = useState("");
   const [newChecklistItem, setNewChecklistItem] = useState("");
@@ -189,6 +190,14 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
                 <span>{track.developmentPoint}</span>
               </button>
             ))}
+            <button
+              className="new-track-button"
+              type="button"
+              onClick={() => setIsCreatingTrack(true)}
+            >
+              <span>＋</span>
+              <strong>Nova trilha</strong>
+            </button>
           </nav>
         </div>
 
@@ -557,6 +566,29 @@ export default function PdiWorkspace({ authConfigured }: { authConfigured: boole
         )}
       </section>
 
+      {isCreatingTrack && (
+        <NewTrackModal
+          saving={saving}
+          onClose={() => setIsCreatingTrack(false)}
+          onSave={async (track) => {
+            const ok = await saveAction({
+              action: "create-track",
+              track,
+              author: "Almir",
+            });
+            if (ok) {
+              setIsCreatingTrack(false);
+              const response = await fetch("/api/pdi", { cache: "no-store" });
+              const data = await response.json().catch(() => ({}));
+              if (response.ok && data.tracks?.length) {
+                setTracks(data.tracks);
+                setSelectedId(data.tracks[data.tracks.length - 1].id);
+              }
+            }
+          }}
+        />
+      )}
+
       {isDeadlineEditing && (
         <DeadlineModal
           track={selected}
@@ -757,6 +789,170 @@ function DeadlineModal({
             disabled={saving || (!start && !end)}
           >
             {saving ? "Salvando..." : "Salvar prazo"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function NewTrackModal({
+  saving,
+  onClose,
+  onSave,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSave: (track: {
+    developmentPoint: string;
+    objective: string;
+    action: string;
+    how: string;
+    expectedResult: string;
+    deadline: string;
+    observation: string;
+    progress: number;
+    status: PdiTrack["status"];
+  }) => void | Promise<void>;
+}) {
+  const [developmentPoint, setDevelopmentPoint] = useState("");
+  const [objective, setObjective] = useState("");
+  const [action, setAction] = useState("");
+  const [how, setHow] = useState("");
+  const [expectedResult, setExpectedResult] = useState("");
+  const [observation, setObservation] = useState("");
+  const [status, setStatus] = useState<PdiTrack["status"]>("Não iniciado");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+
+  function deadline() {
+    if (start && end) return `${fromInputDate(start)} → ${fromInputDate(end)}`;
+    if (start) return `A partir de ${fromInputDate(start)}`;
+    if (end) return `Até ${fromInputDate(end)}`;
+    return "";
+  }
+
+  const canSave = developmentPoint.trim() && objective.trim();
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal-card">
+        <div className="modal-header">
+          <div>
+            <p className="eyebrow">NOVA TRILHA</p>
+            <h2>Criar trilha de desenvolvimento</h2>
+          </div>
+          <button className="close-button" onClick={onClose} aria-label="Fechar">×</button>
+        </div>
+
+        <div className="edit-form">
+          <label>
+            Nome da trilha
+            <input
+              value={developmentPoint}
+              onChange={(event) => setDevelopmentPoint(event.target.value)}
+              placeholder="Ex.: Direção Criativa"
+              autoFocus
+            />
+          </label>
+
+          <label>
+            Objetivo
+            <textarea
+              rows={3}
+              value={objective}
+              onChange={(event) => setObjective(event.target.value)}
+              placeholder="O que você quer desenvolver com essa trilha?"
+            />
+          </label>
+
+          <label>
+            Ação principal
+            <textarea
+              rows={2}
+              value={action}
+              onChange={(event) => setAction(event.target.value)}
+              placeholder="Qual será a principal frente de ação?"
+            />
+          </label>
+
+          <label>
+            Como executar
+            <textarea
+              rows={6}
+              value={how}
+              onChange={(event) => setHow(event.target.value)}
+              placeholder="Liste etapas, pessoas, estudos, práticas ou entregas."
+            />
+          </label>
+
+          <label>
+            Resultado esperado
+            <textarea
+              rows={3}
+              value={expectedResult}
+              onChange={(event) => setExpectedResult(event.target.value)}
+              placeholder="Como você saberá que essa trilha gerou evolução?"
+            />
+          </label>
+
+          <div className="two-columns">
+            <label>
+              Data inicial
+              <input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+            </label>
+            <label>
+              Data final
+              <input
+                type="date"
+                value={end}
+                min={start || undefined}
+                onChange={(event) => setEnd(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <label>
+            Status
+            <select value={status} onChange={(event) => setStatus(event.target.value as PdiTrack["status"])}>
+              <option>Não iniciado</option>
+              <option>Em andamento</option>
+              <option>Concluído</option>
+            </select>
+          </label>
+
+          <label>
+            Observação
+            <textarea
+              rows={3}
+              value={observation}
+              onChange={(event) => setObservation(event.target.value)}
+              placeholder="Contexto adicional, dependências ou observações."
+            />
+          </label>
+        </div>
+
+        <div className="modal-actions">
+          <button className="ghost-button" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button
+            className="primary-button compact"
+            disabled={!canSave || saving}
+            onClick={() =>
+              onSave({
+                developmentPoint: developmentPoint.trim(),
+                objective: objective.trim(),
+                action: action.trim(),
+                how: how.trim(),
+                expectedResult: expectedResult.trim(),
+                deadline: deadline(),
+                observation: observation.trim(),
+                progress: 0,
+                status,
+              })
+            }
+          >
+            {saving ? "Criando..." : "Criar trilha"}
           </button>
         </div>
       </div>
