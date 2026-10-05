@@ -9,14 +9,39 @@ Transformar o PDI de uma planilha estática em um workspace vivo de desenvolvime
 - Next.js 16
 - React 19
 - GitHub para código e versionamento
-- Vercel para deploy
-- Supabase para banco, autenticação e storage na próxima etapa
+- Vercel para deploy e variáveis de ambiente
+- Supabase para banco e, futuramente, autenticação e storage
 
-## V1
+## V1 atual
 
-A V1 prioriza velocidade e validação da interface. Os dados iniciais foram importados da planilha de maio/2026 e as alterações são salvas localmente no navegador.
+A base já utiliza Supabase como persistência compartilhada.
 
-### Entidades já representadas
+### Fluxo
+
+```text
+Login compartilhado
+      ↓
+Next.js / Vercel
+      ↓
+API server-side protegida por sessão
+      ↓
+Supabase
+```
+
+A Publishable Key não possui policies anônimas de escrita. As operações privilegiadas são executadas apenas no servidor usando `SUPABASE_SECRET_KEY`.
+
+## Acesso
+
+A V1 usa:
+
+- `APP_ACCESS_USERNAME`
+- `APP_ACCESS_PASSWORD`
+
+O usuário padrão, quando `APP_ACCESS_USERNAME` não existe, é `almir`.
+
+Uma sessão HTTP-only é criada após o login. Rotas de leitura e gravação do PDI validam essa sessão.
+
+## Dados atuais
 
 - Trilhas de desenvolvimento
 - Objetivos
@@ -30,29 +55,24 @@ A V1 prioriza velocidade e validação da interface. Os dados iniciais foram imp
 - Atualizações/comentários
 - Histórico de mudanças
 
-## Acesso
+## Banco
 
-A aplicação aceita uma senha compartilhada definida pela variável server-side `APP_ACCESS_PASSWORD`. Nenhuma senha é incluída no repositório.
+Tabelas:
 
-No futuro o acesso será migrado para Supabase Auth, com usuários separados.
+- `pdi_tracks`
+- `pdi_updates`
+- `pdi_history`
+- `profiles` preparada para autenticação futura
 
-### Papéis planejados
+RLS está habilitado.
 
-- `owner`: Almir. Controle completo.
-- `manager`: gestor. Comentários, avaliações, validações e permissões de edição definidas posteriormente.
+## Próxima fase
 
-## Persistência planejada
-
-O GitHub não será usado como banco de dados. Conteúdos criados pela interface serão persistidos no Supabase.
-
-### Fase 2
-
-1. Criar tabelas no Supabase.
-2. Migrar as duas trilhas seed para o banco.
-3. Persistir atualizações e histórico.
-4. Adicionar login individual.
-5. Registrar autoria por usuário.
-6. Criar Row Level Security.
-7. Criar módulo de documentação e anexos.
-8. Criar ciclos de estudo e banco de perguntas.
-9. Criar highlights/evidências e métricas do PDI.
+1. Migrar o login compartilhado para Supabase Auth.
+2. Criar contas Almir e Gestor.
+3. Aplicar roles `owner` e `manager`.
+4. Criar policies de RLS por usuário.
+5. Adicionar ciclos de estudo.
+6. Adicionar pessoas e banco de perguntas.
+7. Criar documentação e anexos via Supabase Storage.
+8. Criar highlights/evidências e métricas.
