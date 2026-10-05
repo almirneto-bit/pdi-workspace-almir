@@ -15,6 +15,8 @@ export const seedTracks: PdiTrack[] = [
     progress: 25,
     status: "Em andamento",
     updates: [],
+    checklist: [],
+    notes: [],
     history: [
       {
         id: "seed-p-1",
@@ -37,6 +39,8 @@ export const seedTracks: PdiTrack[] = [
     progress: 10,
     status: "Em andamento",
     updates: [],
+    checklist: [],
+    notes: [],
     history: [
       {
         id: "seed-g-1",
