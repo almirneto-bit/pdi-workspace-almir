@@ -304,6 +304,58 @@ export async function POST(request: Request) {
       );
     }
 
+    if (body.action === "edit-note") {
+      const { error } = await supabase
+        .from("pdi_notes")
+        .update({ content: body.content })
+        .eq("id", body.noteId);
+      if (error) throw error;
+      const trackId = await getDbTrackId(body.trackId);
+      await addHistory(trackId, "Comentário editado", body.author || "Almir");
+    }
+
+    if (body.action === "delete-note") {
+      const { error } = await supabase
+        .from("pdi_notes")
+        .delete()
+        .eq("id", body.noteId);
+      if (error) throw error;
+      const trackId = await getDbTrackId(body.trackId);
+      await addHistory(trackId, "Comentário excluído", body.author || "Almir");
+    }
+
+    if (body.action === "edit-update") {
+      const author = body.author || "Almir";
+      const { error } = await supabase
+        .from("pdi_updates")
+        .update({
+          content: body.content,
+          author_label: author,
+        })
+        .eq("id", body.updateId);
+
+      if (error) {
+        const { error: legacyError } = await supabase
+          .from("pdi_updates")
+          .update({ content: `[${author}] ${body.content}` })
+          .eq("id", body.updateId);
+        if (legacyError) throw error;
+      }
+
+      const trackId = await getDbTrackId(body.trackId);
+      await addHistory(trackId, "Atualização editada", author);
+    }
+
+    if (body.action === "delete-update") {
+      const { error } = await supabase
+        .from("pdi_updates")
+        .delete()
+        .eq("id", body.updateId);
+      if (error) throw error;
+      const trackId = await getDbTrackId(body.trackId);
+      await addHistory(trackId, "Atualização excluída", body.author || "Almir");
+    }
+
     if (body.action === "reset") {
       for (const table of ["pdi_notes", "pdi_checklist_items", "pdi_history", "pdi_updates"]) {
         const { error } = await supabase
