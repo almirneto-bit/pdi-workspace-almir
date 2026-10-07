@@ -6,29 +6,96 @@ import type { PdiTrack } from "@/types/pdi";
 
 async function ensureSeedData() {
   const supabase = createAdminClient();
+
+  const legacySlugs = ["planejamento-estrategico", "gestao-projetos-criativos"];
+  const targetSlugs = seedTracks.map((track) => track.id);
+
   const { data: existing, error } = await supabase
     .from("pdi_tracks")
-    .select("id, slug")
-    .limit(1);
+    .select("id, slug");
 
   if (error) throw error;
-  if (existing && existing.length > 0) return;
 
-  const rows = seedTracks.map((track) => ({
-    slug: track.id,
-    development_point: track.developmentPoint,
-    objective: track.objective,
-    action: track.action,
-    how: "",
-    expected_result: track.expectedResult,
-    deadline: track.deadline,
-    observation: track.observation,
-    progress: track.progress,
-    status: track.status,
-  }));
+  const existingSlugs = new Set((existing ?? []).map((track) => track.slug));
+  const hasLegacyTracks = legacySlugs.some((slug) => existingSlugs.has(slug));
+  const hasAllTargetTracks = targetSlugs.every((slug) => existingSlugs.has(slug));
 
-  const { error: insertError } = await supabase.from("pdi_tracks").insert(rows);
-  if (insertError) throw insertError;
+  // Migração única do planejamento anterior para as três trilhas atuais.
+  // Depois que os slugs legados deixam de existir, os dados passam a ser
+  // totalmente controlados pela própria interface e não são sobrescritos.
+  if (hasLegacyTracks) {
+    const legacyIds = (existing ?? [])
+      .filter((track) => legacySlugs.includes(track.slug))
+      .map((track) => track.id);
+
+    if (legacyIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("pdi_tracks")
+        .delete()
+        .in("id", legacyIds);
+      if (deleteError) throw deleteError;
+    }
+  } else if (hasAllTargetTracks) {
+    return;
+  }
+
+  const { data: refreshed, error: refreshError } = await supabase
+    .from("pdi_tracks")
+    .select("id, slug");
+  if (refreshError) throw refreshError;
+
+  const refreshedSlugs = new Set((refreshed ?? []).map((track) => track.slug));
+  const missingTracks = seedTracks.filter((track) => !refreshedSlugs.has(track.id));
+
+  if (missingTracks.length === 0) return;
+
+  for (const track of missingTracks) {
+    const { data: created, error: insertError } = await supabase
+      .from("pdi_tracks")
+      .insert({
+        slug: track.id,
+        development_point: track.developmentPoint,
+        objective: track.objective,
+        action: track.action,
+        how: "",
+        expected_result: track.expectedResult,
+        deadline: track.deadline,
+        observation: track.observation,
+        progress: track.progress,
+        status: track.status,
+      })
+      .select("id")
+      .single();
+
+    if (insertError) throw insertError;
+
+    const checklist = track.checklist.length
+      ? track.checklist
+      : parseExecutionItems(track.how).map((content, index) => ({
+          id: `seed-${track.id}-${index + 1}`,
+          content,
+          completed: false,
+          createdAt: new Date().toISOString(),
+        }));
+
+    if (checklist.length > 0) {
+      const { error: checklistError } = await supabase
+        .from("pdi_checklist_items")
+        .insert(
+          checklist.map((item) => ({
+            track_id: created.id,
+            content: item.content,
+            completed: item.completed,
+            completed_at: item.completed ? new Date().toISOString() : null,
+          })),
+        );
+
+      if (checklistError) throw checklistError;
+    }
+
+    await syncTrackProgress(created.id);
+    await addHistory(created.id, "Trilha criada a partir da AvD 2026.1");
+  }
 }
 
 async function getDbTrackId(slug: string) {
